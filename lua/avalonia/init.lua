@@ -5,6 +5,8 @@ local cmd = vim.cmd
 local fn = vim.fn
 local bson = require("avalonia.bson")
 local struct = require("avalonia.struct")
+local utils = require("avalonia.utils")
+local config = require("avalonia.config")
 
 local function is_win()
   return package.config:sub(1, 1) == '\\'
@@ -190,14 +192,10 @@ local function create_server(host, port, on_connect)
   return server
 end
 
-local function hexdecode(hex)
-   return (hex:gsub("%x%x", function(digits) return string.char(tonumber(digits, 16)) end))
-end
 
-local function hexencode(str)
-   return (str:gsub(".", function(char) return string.format("%02x", char:byte()) end))
+function M.setup(user_config)
+  config.setup(user_config or {})
 end
-
 
 local messageIds = {
   startDesignerSession = "854887CF26944EB6B4997461B6FB96C7",
@@ -212,7 +210,7 @@ function create_message(message, messageType)
   local dataLength = struct.pack("<I", string.len(bsonMessage))
 
   local typeHex = messageType
-  local type = adjust_guid(hexdecode(typeHex))
+  local type = adjust_guid(utils.hex_decode(typeHex))
 
   local fullMessage = dataLength .. type .. bsonMessage
   -- print("Len: " .. dataLength .. " Actual: " .. string.len(bsonMessage))
@@ -242,32 +240,7 @@ function get_file_extension(url)
   return url:match("^.+(%..+)$")
 end
 
-local openUrlCommand
 
-local config =
-{
-  openUrlCommand = nil,  -- start/open/xdg-open
-  forceBrowser = nil,    -- firefox/chrome/msedge etc
-  displayMethod = "html" -- html/kitty
-}
-
-local open_url = function(url)
-  if config.openUrlCommand ~= nil then
-    openUrlCommand = config.openUrlCommand
-  elseif fn.has('win32') == 1 and fn.has("wsl") == 0 then
-    openUrlCommand = "start"
-  elseif fn.has('mac') then
-    openUrlCommand = "open"
-  else--if vim.fn.has('linux') then
-    openUrlCommand = "xdg-open"
-  end
-
-  if config.forceBrowser then
-    io.popen(openUrlCommand .. " " .. config.forceBrowser .. " " .. url)
-  else
-    io.popen(openUrlCommand .. " " .. url)
-  end
-end
 
 local path = "C:\\Users\\Johan\\source\\repos\\AvaloniaApplication3\\AvaloniaApplication3.Desktop\\bin\\x64\\Release\\net7.0"
 local dllPath = path .. "\\AvaloniaApplication3.Desktop.dll"
@@ -304,7 +277,7 @@ function M.start_server()
 
 
         local hexS =  adjust_guid(typeS)
-        local hex = string.upper(hexencode(hexS))
+        local hex = string.upper(utils.hex_encode(hexS))
 
         -- print("lenth: " .. lenS)
         -- print("message: " .. message)
@@ -320,7 +293,7 @@ function M.start_server()
 
 
           vim.schedule(function()
-            open_url("http://127.0.0.1:9032/")
+            utils.open_url("http://127.0.0.1:9032/")
             M.update_xaml()
           end)
         end
