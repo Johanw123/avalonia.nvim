@@ -32,7 +32,10 @@ local function script_path()
 end
 
 local function read_all(file)
-    local f = assert(io.open(file, "rb"))
+    local f = io.open(file, "rb")
+    if f == nil then
+      return nil
+    end
     local content = f:read("*all")
     f:close()
     return content
@@ -254,6 +257,7 @@ function parse_sln(sln_path)
 
 
   local projects = {}
+  local i = 1
 
   for line in content:gmatch("([^\n]*)\n?") do
     local apa = string.match(line, "Project%(")
@@ -268,7 +272,9 @@ function parse_sln(sln_path)
           -- local project_name = split2[1]
           local project_path = split2[2]
 
-          table.insert(projects, project_path)
+          -- table.insert(projects, project_path)
+          projects[i] = project_path
+          i = i + 1
         end
       end
     end
@@ -277,10 +283,55 @@ function parse_sln(sln_path)
   return projects
 end
 
-function get_avalonia_version(sln_dir)
-  local props_file = sln_dir .. "/Directory.Build.props"
+function parse_csproj(proj_path)
+  local content = read_all(proj_path)
+  if content == nil then
+    return nil
+  end
+  for line in content:gmatch("([^\n]*)\n?") do
+    local m1 = string.match(line, "PackageReference")
+    local m2 = string.match(line, "Avalonia")
+    local m3 = string.match(line, "Version")
+
+    if m1 and m2 and m3 then
+      local split = str_split("=", line)
+      if #split > 2 then
+        local verString = split[3]
+        local major, minor, patch = string.match(verString, "(%d+)%.(%d+)%.(%d+)")
+        if major and minor and patch then
+          local s = major .. "." .. minor .. "." .. patch
+          print(s)
+          return s
+        end
+      end
+      print(vim.inspect(split))
+    end
+  end
+  return nil
+end
+
+function get_avalonia_version(solution_dir, solution_path)
+  local props_file = solution_dir .. "/Directory.Build.props"
   local content = read_all(props_file)
-  local version = string.match(content, "<AvaloniaVersion>(.-)</AvaloniaVersion>")
+  local version = nil
+
+  if content == nil then -- try finding the avalonia path in the .csproj files
+    local projects = parse_sln(solution_path)
+
+    for i = 1, #projects do
+      local s = projects[i]:gsub("%s+", "")
+      s = s:sub(2, -2)
+      print_debug("project: " .. s)
+      print_debug("path: " .. solution_dir .. s)
+      local parsedVersion = parse_csproj(solution_dir .. s)
+      if parsedVersion ~= nil then
+        version = parsedVersion
+      end
+    end
+    return version
+  end
+
+  version = string.match(content, "<AvaloniaVersion>(.-)</AvaloniaVersion>")
   print("AvaloniaVersion: " .. version)
   return version
 end
@@ -349,49 +400,42 @@ function M.start_server()
   local cwd = vim.fn.getcwd()
 
   -- local root_dir = vim.fs.dirname(vim.fs.find({'*.sln'}, { upward = true })[1])
-       local root = vim.fs.find(function(name, _)
-          return name:match('.*%.sln$')
-        end, {limit = math.huge, type = 'file', upward=true})
+  local root = vim.fs.find(function(name, _)
+    return name:match('.*%.sln$')
+   end, {limit = math.huge, type = 'file', upward=true})
 
-  print("CWD: " .. cwd)
-  print(vim.inspect(root))
+  print_debug("CWD: " .. cwd)
+  print_debug(vim.inspect(root))
 
   local solution_path = root[1]
   local solution_dir = utils.get_file_path(solution_path)
 
-  parse_sln(solution_path)
-
-
   local output_path
   local assembly_name
 
-   local test = vim.fs.find(function(name, _)
+  local runtimeconfig = vim.fs.find(function(name, _)
     return name:match('.*%.runtimeconfig.json$')
   end, {limit = math.huge, type = 'file'})
 
-  if #test > 0 then
-    local first_find = test[1]
+  if #runtimeconfig > 0 then
+    local first_find = runtimeconfig[1]
     output_path = utils.get_file_path(first_find)
-    print("output_path: " .. output_path)
+    print_debug("output_path: " .. output_path)
 
     assembly_name = utils.get_file_name(first_find)
     assembly_name = assembly_name:gsub(".runtimeconfig.json", "")
-    print("Assembly Name: " .. assembly_name)
+    print_debug("Assembly Name: " .. assembly_name)
   end
-  -- print(vim.inspect(test))
-
 
   -- local path = "C:\\Users\\Johan\\source\\repos\\AvaloniaApplication3\\AvaloniaApplication3.Desktop\\bin\\x64\\Release\\net7.0"
   local dllPath = output_path .. "/" .. assembly_name .. ".dll"
-  -- local assemblyPath = output_path .. "/AvaloniaApplication3.dll"
   local configPath = output_path .. "/" .. assembly_name .. ".runtimeconfig.json"
   local depsPath = output_path .. "/" .. assembly_name .. ".deps.json"
 
   local avalonia_version = nil
 
   if conf.overrideHostAppPath == nil and conf.AvaloniaHostAppVersion == nil then
-  -- if hostapp version or path isnt specified try getting avalonia version  from current project and find path from nuget with it.
-    avalonia_version = get_avalonia_version(solution_dir)
+    avalonia_version = get_avalonia_version(solution_dir, solution_path)
   elseif conf.overrideHostAppPath ~= nil then
     hostPath = conf.overrideHostAppPath
   elseif conf.AvaloniaHostAppVersion ~= nil then
@@ -404,10 +448,12 @@ function M.start_server()
     else
       hostPath = "~/.nuget/packages/avalonia/" .. avalonia_version .. "/tools/netcoreapp2.0/designer/Avalonia.Designer.HostApp.dll"
     end
+  else
+    print("Error: Could not find avalonia version")
   end
 
   hostPath = vim.fn.expand(hostPath)
-  print("HostPath: " .. hostPath)
+  print_debug("HostPath: " .. hostPath)
 
   vim.defer_fn(function()
     local cmd = "dotnet exec --runtimeconfig " .. configPath .. " --depsfile " .. depsPath .. " " .. hostPath .. " --method avalonia-remote --method html --html-url " .. htmlUrl .. " --transport tcp-bson://127.0.0.1:" .. port .. " " .. dllPath
