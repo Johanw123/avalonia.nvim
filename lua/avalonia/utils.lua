@@ -31,4 +31,17 @@ function utils.open_url(url)
   end
 end
 
+function utils.get_file_extension(url)
+  return url:match("^.+(%..+)$")
+end
+
+function utils.get_file_name(url)
+  return url:match("^.+/(.+)$")
+end
+
+function utils.get_file_path(str,sep)
+    sep=sep or'/'
+    return str:match("(.*"..sep..")")
+end
+
 return utils
