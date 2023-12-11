@@ -26,10 +26,12 @@ function utils.open_url(url)
 
   if conf.forced_browser then
     io.popen(open_url_command .. " " .. conf.forced_browser .. " " .. url)
-  else
+else
     io.popen(open_url_command .. " " .. url)
   end
 end
+
+-- local on_windows = vim.loop.os_uname().version:match("Windows")
 
 function utils.get_file_extension(url)
   return url:match("^.+(%..+)$")
@@ -39,9 +41,41 @@ function utils.get_file_name(url)
   return url:match("^.+/(.+)$")
 end
 
-function utils.get_file_path(str,sep)
-    sep=sep or'/'
-    return str:match("(.*"..sep..")")
+function utils.get_file_path(str)
+  if utils.is_win() then
+    str = str:gsub('/', '\\')
+  end
+
+  return str:match("(.*".. utils.get_path_separator() ..")")
+end
+
+function utils.is_win()
+  return package.config:sub(1, 1) == '\\'
+end
+
+function utils.get_path_separator()
+  if utils.is_win() then
+    return '\\'
+  end
+    return '/'
+end
+
+function utils.script_path()
+  local str = debug.getinfo(2, 'S').source:sub(2)
+  if utils.is_win() then
+    str = str:gsub('/', '\\')
+  end
+  return str:match('(.*' .. utils.get_path_separator() .. ')')
+end
+
+function utils.read_all_text(file)
+    local f = io.open(file, "rb")
+    if f == nil then
+      return nil
+    end
+    local content = f:read("*all")
+    f:close()
+    return content
 end
 
 return utils

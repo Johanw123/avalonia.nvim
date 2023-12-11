@@ -1,97 +1,73 @@
 local M = {}
-local ffi = require'ffi'
+-- local ffi = require'ffi'
 local api = vim.api
-local cmd = vim.cmd
+-- local cmd = vim.cmd
 local fn = vim.fn
 local uv = vim.uv
+local fs = vim.fs
 local bson = require("avalonia.bson")
 local struct = require("avalonia.struct")
 local utils = require("avalonia.utils")
 local config = require("avalonia.config")
 
-local function is_win()
-  return package.config:sub(1, 1) == '\\'
-end
-local on_windows = vim.loop.os_uname().version:match("Windows")
+local output_path
 
-local function get_path_separator()
-  if is_win() then
-    return '\\'
-  end
-  return '/'
-end
+local socket = uv.new_tcp()
 
+local messageIds = {
+  startDesignerSession = "854887CF26944EB6B4997461B6FB96C7",
+  clientRenderInfo = "7A3C25D33652438D8EF186E942CC96C0",
+  clientSupportedPixelFormats = "63481025701643FEBADCF2FD0F88609E",
+  updateXaml = "9AEC9A2E63154066B4BAE9A9EFD0F8CC"
+}
 
+local m_server = nil
+local m_port = nil
 
-local function script_path()
-  local str = debug.getinfo(2, 'S').source:sub(2)
-  if is_win() then
-    str = str:gsub('/', '\\')
-  end
-  return str:match('(.*' .. get_path_separator() .. ')')
-end
+-- local is_visible = function(bufnr)
+--   for _, tabid in ipairs(api.nvim_list_tabpages()) do
+--     for _, winid in ipairs(api.nvim_tabpage_list_wins(tabid)) do
+--       local winbufnr = api.nvim_win_get_buf(winid)
+--       local winvalid = api.nvim_win_is_valid(winid)
+--
+--       if winvalid and winbufnr == bufnr then
+--         return true
+--       end
+--     end
+--   end
+--
+--   return false
+-- end
 
-local function read_all(file)
-    local f = io.open(file, "rb")
-    if f == nil then
-      return nil
-    end
-    local content = f:read("*all")
-    f:close()
-    return content
-end
-
-
-local is_visible = function(bufnr)
-  for _, tabid in ipairs(api.nvim_list_tabpages()) do
-    for _, winid in ipairs(api.nvim_tabpage_list_wins(tabid)) do
-      local winbufnr = api.nvim_win_get_buf(winid)
-      local winvalid = api.nvim_win_is_valid(winid)
-
-      if winvalid and winbufnr == bufnr then
-        return true
-      end
-    end
-  end
-
-  return false
-end
-
-function script_path()
-   local str = debug.getinfo(2, "S").source:sub(2)
-   return str:match("(.*/)")
-end
-
-local base_path = script_path() .. "../../"
-local buf = api.nvim_create_buf(false, true)
-vim.api.nvim_buf_set_option(buf, 'modifiable', false)
-vim.api.nvim_buf_set_option(buf, 'buftype', 'nofile')
-local win = nil
-local stdout = vim.loop.new_tty(1, false)
-
-api.nvim_create_autocmd({ "BufWinLeave" }, {
-  callback = function(au)
-    -- vim.print_debug(vim.inspect(au))
-    if au.buf == buf then
-      -- M.clear_preview() --for kitty protocol
-    end
-  end,
-})
+-- local buf = api.nvim_create_buf(false, true)
+-- vim.api.nvim_buf_set_option(buf, 'modifiable', false)
+-- vim.api.nvim_buf_set_option(buf, 'buftype', 'nofile')
+-- local win = nil
+-- local stdout = vim.loop.new_tty(1, false)
+--
+-- api.nvim_create_autocmd({ "BufWinLeave" }, {
+--   callback = function(au)
+--     -- vim.print_debug(vim.inspect(au))
+--     -- if au.buf == buf then
+--     --   -- M.clear_preview() --for kitty protocol
+--     -- end
+--   end,
+-- })
 
 api.nvim_create_autocmd({ "BufWritePost" }, {
   callback = function()
-    if is_visible(buf) then
-     -- M.generate_preivew_image() -- for kitty protocol
-    end
+    -- if is_visible(buf) then
+    --  -- M.generate_preivew_image() -- for kitty protocol
+    -- end
   M.update_xaml()
   end,
 })
 
 api.nvim_create_autocmd({ "BufEnter" }, {
   callback = function()
-    if is_visible(buf) then
-     -- M.generate_preivew_image() -- for kitty protocol
-    end
+    -- if is_visible(buf) then
+    --  -- M.generate_preivew_image() -- for kitty protocol
+    -- end
   M.update_xaml()
   end,
 })
@@ -185,7 +161,6 @@ api.nvim_create_autocmd({ "BufEnter" }, {
 --   stdout:write(deleteCall)
 -- end
 
-local socket = uv.new_tcp()
 
 
 local function print_debug(message)
@@ -195,7 +170,7 @@ local function print_debug(message)
   end
 end
 
-function str_split(delim,str)
+local function str_split(delim,str)
     local t = {}
 
     for substr in string.gmatch(str, "[^".. delim.. "]*") do
@@ -210,69 +185,49 @@ end
 local function get_free_port()
   local tcp = vim.loop.new_tcp()
 	tcp:bind("127.0.0.1", 0)
-	local port = tcp:getsockname().port
+	local free_port = tcp:getsockname().port
 	tcp:shutdown()
 	tcp:close()
-  return port
+  return free_port
 end
 
 local function create_server(host, port, on_connect)
-  local server = uv.new_tcp()
+  local new_server = uv.new_tcp()
 
   print_debug("Creating server: " .. host .. " - " .. port)
 
-  local rtn = server:bind(host, port)
-  -- print_debug("Bind: " .. rtn)
-  rtn = server:listen(128, function(err)
-    -- print_debug("Listening on port: " .. port)
+  new_server:bind(host, port)
+  new_server:listen(128, function(err)
     assert(not err, err)
-    rtn = server:accept(socket)
-    -- print_debug("Accept: " .. rtn)
+    new_server:accept(socket)
     on_connect(socket)
   end)
-  -- print_debug("Listen: " .. rtn)
-  return server
+  return new_server
 end
 
+local function parse_sln(sln_path)
 
-function M.setup(user_config)
-  config.setup(user_config or {})
-end
+  local content = utils.read_all_text(sln_path)
 
-local messageIds = {
-  startDesignerSession = "854887CF26944EB6B4997461B6FB96C7",
-  clientRenderInfo = "7A3C25D33652438D8EF186E942CC96C0",
-  clientSupportedPixelFormats = "63481025701643FEBADCF2FD0F88609E",
-  updateXaml = "9AEC9A2E63154066B4BAE9A9EFD0F8CC"
-  }
-
-
-
-function parse_sln(sln_path)
-
-  local content = read_all(sln_path)
-  vim.print(vim.inspect(content))
-  local apa = string.match(content, "Project*")
-  vim.print(apa)
-
+  if content == nil then
+    return nil
+  end
 
   local projects = {}
   local i = 1
 
   for line in content:gmatch("([^\n]*)\n?") do
-    local apa = string.match(line, "Project%(")
-    if apa ~= nil then
+    local match = string.match(line, "Project%(")
+    if match ~= nil then
       local split1 = str_split("=", line)
-      vim.print(split1)
+      -- print_debug(split1)
       if #split1 > 1 then
         local split2 = str_split(",", split1[2])
-        vim.print(split2)
+        -- print_debug(split2)
 
         if #split2 > 2 then
-          -- local project_name = split2[1]
           local project_path = split2[2]
 
-          -- table.insert(projects, project_path)
           projects[i] = project_path
           i = i + 1
         end
@@ -283,8 +238,8 @@ function parse_sln(sln_path)
   return projects
 end
 
-function parse_csproj(proj_path)
-  local content = read_all(proj_path)
+local function parse_csproj(proj_path)
+  local content = utils.read_all_text(proj_path)
   if content == nil then
     return nil
   end
@@ -299,20 +254,20 @@ function parse_csproj(proj_path)
         local verString = split[3]
         local major, minor, patch = string.match(verString, "(%d+)%.(%d+)%.(%d+)")
         if major and minor and patch then
-          local s = major .. "." .. minor .. "." .. patch
-          print(s)
-          return s
+          local version = major .. "." .. minor .. "." .. patch
+          -- print_debug(s)
+          return version
         end
       end
-      print(vim.inspect(split))
+      -- print(vim.inspect(split))
     end
   end
   return nil
 end
 
-function get_avalonia_version(solution_dir, solution_path)
+local function get_avalonia_version(solution_dir, solution_path)
   local props_file = solution_dir .. "/Directory.Build.props"
-  local content = read_all(props_file)
+  local content = utils.read_all_text(props_file)
   local version = nil
 
   if content == nil then -- try finding the avalonia path in the .csproj files
@@ -332,11 +287,19 @@ function get_avalonia_version(solution_dir, solution_path)
   end
 
   version = string.match(content, "<AvaloniaVersion>(.-)</AvaloniaVersion>")
-  print("AvaloniaVersion: " .. version)
+  print_debug("AvaloniaVersion: " .. version)
   return version
 end
 
-function create_message(message, messageType)
+local function adjust_guid(guid)
+  local sub1 = string.sub(guid, 1, 4)
+  local sub2 = string.sub(guid, 5, 6)
+  local sub3 = string.sub(guid, 7, 8)
+  local sub4 = string.sub(guid, 9)
+  return string.reverse(sub1) .. string.reverse(sub2) .. string.reverse(sub3) .. sub4
+end
+
+local function create_message(message, messageType)
   local bsonMessage = bson.encode(message)
   local dataLength = struct.pack("<I", string.len(bsonMessage))
 
@@ -348,59 +311,33 @@ function create_message(message, messageType)
   return fullMessage
 end
 
-function adjust_guid(guid)
-  local sub1 = string.sub(guid, 1, 4)
-  local sub2 = string.sub(guid, 5, 6)
-  local sub3 = string.sub(guid, 7, 8)
-  local sub4 = string.sub(guid, 9)
-
-  -- print_debug("sub1: " .. sub1)
-  -- print_debug("sub2: " .. sub2)
-  -- print_debug("sub3: " .. sub3)
-  -- print_debug("sub4: " .. sub4)
-  --
-  -- print_debug("sub1R: " .. string.reverse(sub1))
-  -- print_debug("sub2R: " .. string.reverse(sub2))
-  -- print_debug("sub3R: " .. string.reverse(sub3))
-
-  return string.reverse(sub1) .. string.reverse(sub2) .. string.reverse(sub3) .. sub4
+function M.setup(user_config)
+  config.setup(user_config or {})
 end
-
-
--- local path = "C:\\Users\\Johan\\source\\repos\\AvaloniaApplication3\\AvaloniaApplication3.Desktop\\bin\\x64\\Release\\net7.0"
--- local dllPath = path .. "\\AvaloniaApplication3.Desktop.dll"
--- local assemblyPath = "C:\\Users\\Johan\\source\\repos\\AvaloniaApplication3\\AvaloniaApplication3\\bin\\x64\\Release\\net7.0\\AvaloniaApplication3.dll"
--- local configPath = path .. "\\AvaloniaApplication3.Desktop.runtimeconfig.json"
--- local depsPath = path .. "\\AvaloniaApplication3.Desktop.deps.json"
-
-
-local server = nil
-local port = nil
 
 function M.start_server()
 
-  if server ~= nil then
+  if m_server ~= nil then
     print_debug("server already running")
-    -- print_debug(vim.inspect(server))
-    -- vim.pretty_print_debug(server)
+    -- open browser?
     return
   end
 
   local conf = config.get_config()
 
   if conf.tcp_port == 0 then
-    port = get_free_port()
+    m_port = get_free_port()
   else
-    port = conf.tcp_port
+    m_port = conf.tcp_port
   end
 
-  local htmlUrl = "http://127.0.0.1:" .. tostring(port + 1)
+  local htmlUrl = "http://127.0.0.1:" .. tostring(m_port + 1)
   local hostPath
 
-  local cwd = vim.fn.getcwd()
+  local cwd = fn.getcwd()
 
   -- local root_dir = vim.fs.dirname(vim.fs.find({'*.sln'}, { upward = true })[1])
-  local root = vim.fs.find(function(name, _)
+  local root = fs.find(function(name, _)
     return name:match('.*%.sln$')
    end, {limit = math.huge, type = 'file', upward=true})
 
@@ -410,15 +347,15 @@ function M.start_server()
   local solution_path = root[1]
   local solution_dir = utils.get_file_path(solution_path)
 
-  local output_path
   local assembly_name
 
-  local runtimeconfig = vim.fs.find(function(name, _)
+  local runtimeconfig = fs.find(function(name, _)
     return name:match('.*%.runtimeconfig.json$')
   end, {limit = math.huge, type = 'file'})
 
   if #runtimeconfig > 0 then
     local first_find = runtimeconfig[1]
+    print_debug("runtimeconf: " .. first_find)
     output_path = utils.get_file_path(first_find)
     print_debug("output_path: " .. output_path)
 
@@ -427,7 +364,6 @@ function M.start_server()
     print_debug("Assembly Name: " .. assembly_name)
   end
 
-  -- local path = "C:\\Users\\Johan\\source\\repos\\AvaloniaApplication3\\AvaloniaApplication3.Desktop\\bin\\x64\\Release\\net7.0"
   local dllPath = output_path .. "/" .. assembly_name .. ".dll"
   local configPath = output_path .. "/" .. assembly_name .. ".runtimeconfig.json"
   local depsPath = output_path .. "/" .. assembly_name .. ".deps.json"
@@ -443,7 +379,7 @@ function M.start_server()
   end
 
   if avalonia_version ~= nil then
-    if is_win() then
+    if utils.is_win() then
       hostPath = "$HOME\\.nuget\\packages\\avalonia\\" .. avalonia_version .. "\\tools\\netcoreapp2.0\\designer\\Avalonia.Designer.HostApp.dll"
     else
       hostPath = "~/.nuget/packages/avalonia/" .. avalonia_version .. "/tools/netcoreapp2.0/designer/Avalonia.Designer.HostApp.dll"
@@ -452,12 +388,14 @@ function M.start_server()
     print("Error: Could not find avalonia version")
   end
 
-  hostPath = vim.fn.expand(hostPath)
+  hostPath = fn.expand(hostPath)
   print_debug("HostPath: " .. hostPath)
 
+  local base_path = utils.script_path() .. "../../"
+
   vim.defer_fn(function()
-    local cmd = "dotnet exec --runtimeconfig " .. configPath .. " --depsfile " .. depsPath .. " " .. hostPath .. " --method avalonia-remote --method html --html-url " .. htmlUrl .. " --transport tcp-bson://127.0.0.1:" .. port .. " " .. dllPath
-    vim.fn.jobstart(
+    local cmd = "dotnet exec --runtimeconfig " .. configPath .. " --depsfile " .. depsPath .. " " .. hostPath .. " --method avalonia-remote --method html --html-url " .. htmlUrl .. " --transport tcp-bson://127.0.0.1:" .. m_port .. " " .. dllPath
+    fn.jobstart(
         cmd,
         {
           cwd = base_path,
@@ -468,14 +406,14 @@ function M.start_server()
     )
   end, 100)
 
-  server = create_server('127.0.0.1', port, function(sock)
+  m_server = create_server('127.0.0.1', m_port, function(sock)
       sock:read_start(function(err, chunk)
         assert(not err, err)
 
         local sockname = uv.tcp_getsockname(sock)
-        port = sockname.port
+        m_port = sockname.port
 
-        print_debug("Running server on port: " .. port)
+        print_debug("Running server on port: " .. m_port)
 
         if chunk then
           local typeS = string.sub(chunk, 5, 20)
@@ -500,24 +438,39 @@ function M.start_server()
 end
 
 function M.update_xaml()
-  local xaml = vim.fn.expand('%:p')
+  local xaml = fn.expand('%:p')
   local ext = utils.get_file_extension(xaml)
 
   if ext == nil then
     return
   end
+
+  if output_path == nil then
+    return
+  end
+
   print_debug("xaml: " .. xaml)
   print_debug("extension: " .. ext)
 
   if ext == ".axaml" then
-    local content = read_all(xaml)
-    local message = create_message({assemblyPath = assemblyPath, xaml = content}, messageIds.updateXaml)
-    print_debug("Sending message: update_xaml")
-    socket:write(message)
+    local cur_path = utils.get_file_path(xaml)
+
+    local projs = fs.find(function(name, _)
+        return name:match('.*%.csproj$')
+      end, {limit = math.huge, type = 'file', upward=true, path=cur_path})
+
+    if #projs > 0 then
+      local proj = projs[1]
+      local proj_name = utils.get_file_name(proj)
+      local assemblyPath = output_path .. proj_name:gsub(".csproj", ".dll")
+
+      print_debug("Assembly Path: " .. assemblyPath)
+      local content = utils.read_all_text(xaml)
+      local message = create_message({ assemblyPath = assemblyPath, xaml = content }, messageIds.updateXaml)
+      print_debug("Sending message: update_xaml")
+      socket:write(message)
+    end
   end
 end
-
-
--- M.setup({})
 
 return M
