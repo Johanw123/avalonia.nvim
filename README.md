@@ -1,8 +1,6 @@
 # avalonia.nvim
 Avalonia preview integration for Neovim
 
-nuget install avalonia -version 11.0.5
-
 Lazy.nvim
 ```
   {
