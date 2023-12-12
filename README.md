@@ -2,14 +2,14 @@
 Avalonia preview integration for Neovim
 
 Lazy.nvim
-```
+```lua
   {
     "Johanw123/avalonia.nvim",
   }
 ```
 
 Default Settings
-```
+```lua
   require("avalonia.nvim").setup {
     openUrlCommand = nil,  -- start/open/xdg-open
     forced_browser = nil,    -- firefox/chrome/msedge etc
