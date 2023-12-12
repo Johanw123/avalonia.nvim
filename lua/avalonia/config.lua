@@ -3,8 +3,6 @@ local config = {}
 
 M.defaults =
 {
-  overrideHostAppPath = nil, -- specify path to Avalonia.Designer.HostApp.dll (~/.nuget/packages/ )
-  AvaloniaHostAppVersion = nil, -- Or specify an avalonia version and search the nuget default directory for the HostApp dll
   openUrlCommand = nil,  -- start/open/xdg-open
   forced_browser = nil,    -- firefox/chrome/msedge etc
   displayMethod = "html", -- html/kitty(not implemented yet)

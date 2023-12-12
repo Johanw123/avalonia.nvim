@@ -9,10 +9,10 @@ local bson = require("avalonia.bson")
 local struct = require("avalonia.struct")
 local utils = require("avalonia.utils")
 local config = require("avalonia.config")
-
 local output_path
+local socket
 
-local socket = uv.new_tcp()
+local setup_done = false
 
 local messageIds = {
   startDesignerSession = "854887CF26944EB6B4997461B6FB96C7",
@@ -270,24 +270,25 @@ local function get_avalonia_version(solution_dir, solution_path)
   local content = utils.read_all_text(props_file)
   local version = nil
 
-  if content == nil then -- try finding the avalonia path in the .csproj files
-    local projects = parse_sln(solution_path)
-
-    for i = 1, #projects do
-      local s = projects[i]:gsub("%s+", "")
-      s = s:sub(2, -2)
-      print_debug("project: " .. s)
-      print_debug("path: " .. solution_dir .. s)
-      local parsedVersion = parse_csproj(solution_dir .. s)
-      if parsedVersion ~= nil then
-        version = parsedVersion
-      end
-    end
+  if content ~= nil then
+    version = string.match(content, "<AvaloniaVersion>(.-)</AvaloniaVersion>")
+    print_debug("AvaloniaVersion: " .. version)
     return version
   end
 
-  version = string.match(content, "<AvaloniaVersion>(.-)</AvaloniaVersion>")
-  print_debug("AvaloniaVersion: " .. version)
+  local projects = parse_sln(solution_path)
+
+  for i = 1, #projects do
+    local s = projects[i]:gsub("%s+", "")
+    s = s:sub(2, -2)
+    print_debug("project: " .. s)
+    print_debug("path: " .. solution_dir .. s)
+    local parsedVersion = parse_csproj(solution_dir .. s)
+    if parsedVersion ~= nil then
+      version = parsedVersion
+    end
+  end
+
   return version
 end
 
@@ -312,7 +313,13 @@ local function create_message(message, messageType)
 end
 
 function M.setup(user_config)
+  if setup_done then
+    print("Setup already called")
+    return
+  end
+
   config.setup(user_config or {})
+  setup_done = true
 end
 
 function M.start_server()
@@ -323,6 +330,7 @@ function M.start_server()
     return
   end
 
+  socket = uv.new_tcp()
   local conf = config.get_config()
 
   if conf.tcp_port == 0 then
@@ -368,28 +376,33 @@ function M.start_server()
   local configPath = output_path .. "/" .. assembly_name .. ".runtimeconfig.json"
   local depsPath = output_path .. "/" .. assembly_name .. ".deps.json"
 
-  local avalonia_version = nil
+  local avalonia_version = get_avalonia_version(solution_dir, solution_path)
 
-  if conf.overrideHostAppPath == nil and conf.AvaloniaHostAppVersion == nil then
-    avalonia_version = get_avalonia_version(solution_dir, solution_path)
-  elseif conf.overrideHostAppPath ~= nil then
-    hostPath = conf.overrideHostAppPath
-  elseif conf.AvaloniaHostAppVersion ~= nil then
-    avalonia_version = conf.AvaloniaHostAppVersion
+  local nuget_path
+  local host_part
+
+  if utils.is_win() then
+    nuget_path = "$HOME\\.nuget\\packages\\avalonia\\"
+    host_part = "\\tools\\netcoreapp2.0\\designer\\Avalonia.Designer.HostApp.dll"
+  else
+    nuget_path = "~/.nuget/packages/avalonia/"
+    host_part = "/tools/netcoreapp2.0/designer/Avalonia.Designer.HostApp.dll"
   end
 
   if avalonia_version ~= nil then
-    if utils.is_win() then
-      hostPath = "$HOME\\.nuget\\packages\\avalonia\\" .. avalonia_version .. "\\tools\\netcoreapp2.0\\designer\\Avalonia.Designer.HostApp.dll"
-    else
-      hostPath = "~/.nuget/packages/avalonia/" .. avalonia_version .. "/tools/netcoreapp2.0/designer/Avalonia.Designer.HostApp.dll"
-    end
+    hostPath = nuget_path .. avalonia_version .. host_part
   else
     print("Error: Could not find avalonia version")
+    return
   end
 
   hostPath = fn.expand(hostPath)
   print_debug("HostPath: " .. hostPath)
+
+  if not utils.file_exists(hostPath) then
+    print("Error: Target avalonia version not installed: " .. avalonia_version .. " (Try building the project)")
+    return
+  end
 
   local base_path = utils.script_path() .. "../../"
 

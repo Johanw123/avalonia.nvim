@@ -31,6 +31,11 @@ else
   end
 end
 
+function utils.file_exists(name)
+   local f=io.open(name,"r")
+   if f~=nil then io.close(f) return true else return false end
+end
+
 -- local on_windows = vim.loop.os_uname().version:match("Windows")
 
 function utils.get_file_extension(url)
