@@ -12,7 +12,7 @@ This plugin is experimental so expect bugs. It also expects a fairly standing fi
 
 ![avalonia nvim](https://github.com/Johanw123/avalonia.nvim/assets/5846087/0c1483c6-5344-4e12-a823-94e3cf11df24)
 
-https://github.com/Johanw123/avalonia.nvim/assets/5846087/10d4cdfc-9387-4192-ad3a-0873149b46bc
+https://github.com/Johanw123/avalonia.nvim/assets/5846087/f72ed337-0e76-47a7-b528-f8e4a75571fd
 
 ### Lazy.nvim
 ```lua
