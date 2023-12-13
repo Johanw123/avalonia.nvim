@@ -20,5 +20,10 @@ Default Settings
     debug = false,
 }
 ```
+# Future plans
+- kitty grahpics protocol support
 
-
+# References
+- https://github.com/kuiperzone/AvantGarde
+- https://github.com/AvaloniaUI/Avalonia
+- https://marketplace.visualstudio.com/items?itemName=AvaloniaTeam.vscode-avalonia
