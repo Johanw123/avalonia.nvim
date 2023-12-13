@@ -36,8 +36,13 @@ This plugin is experimental so expect bugs. It also expects a fairly standing fi
 For avalonia completion on .axaml im using the LSP from vscode-avalonia extension.
 
 ```lua
+  -- windows
   local avalonia_lsp_bin = "%USERPROFILE%\\.vscode\\extensions\\avaloniateam.vscode-avalonia-0.0.25\\avaloniaServer\\AvaloniaLanguageServer.dll"
+  -- linux
+  local avalonia_lsp_bin = "~/.vscode/extensions/avaloniateam.vscode-avalonia-0.0.25/avaloniaServer/AvaloniaLanguageServer.dll"
+```
 
+```lua   
   vim.api.nvim_create_autocmd({"BufNewFile", "BufRead"},{ pattern = {"*.axaml"}, callback =
     function()
       vim.cmd.setfiletype("xml")
