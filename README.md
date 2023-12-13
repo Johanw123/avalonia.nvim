@@ -32,7 +32,7 @@ This plugin is experimental so expect bugs. It also expects a fairly standing fi
 - kitty grahpics protocol support
 
 # References
-- https://github.com/kuiperzone/AvantGarde
 - https://github.com/AvaloniaUI/Avalonia
 - https://github.com/AvaloniaUI/Avalonia/wiki/XAML-previewer-protocol
 - https://marketplace.visualstudio.com/items?itemName=AvaloniaTeam.vscode-avalonia
+- https://github.com/kuiperzone/AvantGarde
