@@ -8,7 +8,7 @@ This plugin is experimental so expect bugs. It also expects a fairly standing fi
 # Usage
 1. open .axaml file
 2. call `require("avalonia").start_server()` 
-3. edit axaml (updates preview on save)
+3. edit axaml, updates preview on save or opening a .axaml if the server is running
 
 ### Lazy.nvim
 ```lua
