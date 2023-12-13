@@ -3,7 +3,6 @@ Avalonia preview integration for Neovim.
 
 This plugin is experimental so expect bugs. It also expects a fairly standing file structure with a .sln file in the root.
 
-
 # Usage
 1. Open .axaml file
 2. Call `require("avalonia").open_preview()` 
