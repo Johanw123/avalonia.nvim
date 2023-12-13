@@ -7,8 +7,9 @@ This plugin is experimental so expect bugs. It also expects a fairly standing fi
 # Usage
 1. Open .axaml file
 2. Call `require("avalonia").open_preview()` 
-3. Edit .axaml, preview updates on saving buffer or opening a .axaml if the server is running
-
+3. Edit .axaml
+4. Preview update on saving buffer or opening a .axaml if the server is running
+   
 ![image](https://github.com/Johanw123/avalonia.nvim/assets/5846087/2e7e066d-9056-4d97-bd41-33e7b9c7e0fb)
 
 ### Lazy.nvim
