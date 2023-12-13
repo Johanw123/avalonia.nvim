@@ -4,12 +4,12 @@ Avalonia preview integration for Neovim.
 This plugin is experimental so expect bugs. It also expects a fairly standing file structure with a .sln file in the root.
 
 
-![image](https://github.com/Johanw123/avalonia.nvim/assets/5846087/2e7e066d-9056-4d97-bd41-33e7b9c7e0fb)
-
 # Usage
 1. Open .axaml file
 2. Call `require("avalonia").start_server()` 
 3. Edit .axaml, updates preview on save or opening a .axaml if the server is running
+
+![image](https://github.com/Johanw123/avalonia.nvim/assets/5846087/2e7e066d-9056-4d97-bd41-33e7b9c7e0fb)
 
 ### Lazy.nvim
 ```lua
