@@ -3,7 +3,7 @@ local M = {}
 local api = vim.api
 -- local cmd = vim.cmd
 local fn = vim.fn
-local uv = vim.uv
+local uv = vim.loop
 local fs = vim.fs
 local bson = require("avalonia.bson")
 local struct = require("avalonia.struct")
@@ -23,6 +23,7 @@ local messageIds = {
 
 local m_server = nil
 local m_port = nil
+local html_url = nil
 
 -- local is_visible = function(bufnr)
 --   for _, tabid in ipairs(api.nvim_list_tabpages()) do
@@ -71,6 +72,17 @@ api.nvim_create_autocmd({ "BufEnter" }, {
   M.update_xaml()
   end,
 })
+
+api.nvim_create_autocmd({ "ExitPre" }, {
+  callback = function()
+    if socket ~= nil then
+      socket:close()
+    end
+  end,
+})
+
+
+
 
 -- local preview_win_restore
 
@@ -183,7 +195,7 @@ local function str_split(delim,str)
 end
 
 local function get_free_port()
-  local tcp = vim.loop.new_tcp()
+  local tcp = uv.new_tcp()
 	tcp:bind("127.0.0.1", 0)
 	local free_port = tcp:getsockname().port
 	tcp:shutdown()
@@ -322,11 +334,21 @@ function M.setup(user_config)
   setup_done = true
 end
 
-function M.start_server()
+
+function M.open_preview()
 
   if m_server ~= nil then
     print_debug("server already running")
-    -- open browser?
+
+    if html_url == nil then
+      print("Error: the html_url is nil, something is wrong")
+      return
+    end
+
+    vim.schedule(function()
+      utils.open_url(html_url)
+      M.update_xaml()
+    end)
     return
   end
 
@@ -339,7 +361,7 @@ function M.start_server()
     m_port = conf.tcp_port
   end
 
-  local htmlUrl = "http://127.0.0.1:" .. tostring(m_port + 1)
+  html_url = "http://127.0.0.1:" .. tostring(m_port + 1)
   local hostPath
 
   local cwd = fn.getcwd()
@@ -370,6 +392,11 @@ function M.start_server()
     assembly_name = utils.get_file_name(first_find)
     assembly_name = assembly_name:gsub(".runtimeconfig.json", "")
     print_debug("Assembly Name: " .. assembly_name)
+  end
+
+  if assembly_name == nil then
+    print("Could not locate assembly, try building the project.")
+    return
   end
 
   local dllPath = output_path .. "/" .. assembly_name .. ".dll"
@@ -407,7 +434,7 @@ function M.start_server()
   local base_path = utils.script_path() .. "../../"
 
   vim.defer_fn(function()
-    local cmd = "dotnet exec --runtimeconfig " .. configPath .. " --depsfile " .. depsPath .. " " .. hostPath .. " --method avalonia-remote --method html --html-url " .. htmlUrl .. " --transport tcp-bson://127.0.0.1:" .. m_port .. " " .. dllPath
+    local cmd = "dotnet exec --runtimeconfig " .. configPath .. " --depsfile " .. depsPath .. " " .. hostPath .. " --method avalonia-remote --method html --html-url " .. html_url .. " --transport tcp-bson://127.0.0.1:" .. m_port .. " " .. dllPath
     fn.jobstart(
         cmd,
         {
@@ -438,7 +465,7 @@ function M.start_server()
             socket:write(pixelFormatMessage)
 
             vim.schedule(function()
-              utils.open_url(htmlUrl)
+              utils.open_url(html_url)
               M.update_xaml()
             end)
           end
