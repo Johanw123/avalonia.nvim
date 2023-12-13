@@ -9,8 +9,8 @@ This plugin is experimental so expect bugs. It also expects a fairly standing fi
 2. Call `require("avalonia").open_preview()` 
 3. Edit .axaml
 4. Preview will update on saving the buffer or opening a new .axaml
-   
-![image](https://github.com/Johanw123/avalonia.nvim/assets/5846087/2e7e066d-9056-4d97-bd41-33e7b9c7e0fb)
+
+![avalonia nvim](https://github.com/Johanw123/avalonia.nvim/assets/5846087/e12ac44e-ba0a-4f71-96b6-32915b59dbf6)
 
 ### Lazy.nvim
 ```lua
