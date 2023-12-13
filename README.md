@@ -5,14 +5,14 @@ This plugin is experimental so expect bugs. It also expects a fairly standing fi
 
 ![image](https://github.com/Johanw123/avalonia.nvim/assets/5846087/2e7e066d-9056-4d97-bd41-33e7b9c7e0fb)
 
-Lazy.nvim
+### Lazy.nvim
 ```lua
   {
     "Johanw123/avalonia.nvim",
   }
 ```
 
-Default Settings
+### Default Settings
 ```lua
   require("avalonia.nvim").setup {
     openUrlCommand = nil,  -- start/open/xdg-open
