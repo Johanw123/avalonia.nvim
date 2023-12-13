@@ -32,6 +32,23 @@ This plugin is experimental so expect bugs. It also expects a fairly standing fi
 # Future plans
 - kitty grahpics protocol support
 
+# Extra
+For avalonia completion on .axaml im using the LSP from vscode-avalonia extension.
+
+```lua
+  local avalonia_lsp_bin = "%USERPROFILE%\.vscode\extensions\avaloniateam.vscode-avalonia-0.0.25\avaloniaServer\AvaloniaLanguageServer.dll"
+
+  vim.api.nvim_create_autocmd({"BufNewFile", "BufRead"},{ pattern = {"*.axaml"}, callback =
+    function()
+      vim.cmd.setfiletype("xml")
+      vim.lsp.start({
+        name = "Avalonia LSP",
+        cmd = { "dotnet", avalonia_lsp_bin },
+        root_dir = vim.fn.getcwd(),
+      })
+    end})
+```
+
 # References
 - https://github.com/AvaloniaUI/Avalonia
 - https://github.com/AvaloniaUI/Avalonia/wiki/XAML-previewer-protocol
