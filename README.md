@@ -10,10 +10,10 @@ This plugin is experimental so expect bugs. It also expects a fairly standing fi
 3. Edit .axaml
 4. Preview will update on saving the buffer or opening a new .axaml
 
-![avalonia nvim](https://github.com/Johanw123/avalonia.nvim/assets/5846087/e12ac44e-ba0a-4f71-96b6-32915b59dbf6)
+![avalonia nvim](https://github.com/Johanw123/avalonia.nvim/assets/5846087/0c1483c6-5344-4e12-a823-94e3cf11df24)
 
+https://github.com/Johanw123/avalonia.nvim/assets/5846087/10d4cdfc-9387-4192-ad3a-0873149b46bc
 
-https://github.com/Johanw123/avalonia.nvim/assets/5846087/2352efe2-15bc-4c74-a518-45de57f4a74f
 
 
 ### Lazy.nvim
