@@ -14,8 +14,6 @@ This plugin is experimental so expect bugs. It also expects a fairly standing fi
 
 https://github.com/Johanw123/avalonia.nvim/assets/5846087/10d4cdfc-9387-4192-ad3a-0873149b46bc
 
-
-
 ### Lazy.nvim
 ```lua
   {
